@@ -171,7 +171,7 @@ server {
 
     location ~ ^/(docs|storage/logs|storage/backups|tools)(/|$) { deny all; }
     location = /config.private.php { deny all; }
-    location ~ /\\.(?!well-known/) { deny all; }
+    location ~ /\.(?!well-known/) { deny all; }
 
     location = /api/context/list { rewrite ^ /api/context.php?action=list last; }
     location = /api/context/current { rewrite ^ /api/context.php?action=current last; }
@@ -182,32 +182,32 @@ server {
 
     location = /sw.js {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files \\$uri =404;
+        try_files \$uri =404;
     }
     location = /manifest.json {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files \\$uri =404;
+        try_files \$uri =404;
     }
     location = /index.php {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:$PHP_FPM_SOCKET;
     }
-    location ~* \\.(js|css)$ {
+    location ~* \.(js|css)$ {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files \\$uri =404;
+        try_files \$uri =404;
     }
-    location ~* \\.(png|jpe?g|webp|svg)$ {
+    location ~* \.(png|jpe?g|webp|svg)$ {
         expires 30d;
-        try_files \\$uri =404;
+        try_files \$uri =404;
     }
-    location ~ \\.php$ {
-        try_files \\$uri =404;
+    location ~ \.php$ {
+        try_files \$uri =404;
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:$PHP_FPM_SOCKET;
     }
     location / {
-        try_files \\$uri $uri/ /index.php?$query_string;
+        try_files \$uri \$uri/ /index.php?\$query_string;
     }
 }
 EOF
