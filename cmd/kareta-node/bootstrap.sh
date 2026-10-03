@@ -9,6 +9,10 @@ RUNTIME_HEALTH_PATH="${5:?runtime health path required}"
 READINESS_PATH="${6:?readiness path required}"
 PUBLIC_HOSTNAME="${7:-_}"
 TOKEN_FILE="${8:-/etc/cloudflared/token}"
+CF_VERSION="${9:?cloudflared version required}"
+CF_URL="${10:?cloudflared URL required}"
+CF_SHA256="${11:?cloudflared SHA-256 required}"
+CF_SIZE="${12:?cloudflared size required}"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -19,6 +23,35 @@ if ! command -v apt-get >/dev/null 2>&1; then
   fail "this bootstrap currently supports Debian/Ubuntu WSL only"
 fi
 
+install_cloudflared() {
+  local dest=/usr/local/bin/cloudflared
+  local tmp current_sha current_size
+
+  if [ -f "$dest" ]; then
+    current_sha="$(sha256sum "$dest" | awk '{print $1}')"
+    current_size="$(stat -c '%s' "$dest")"
+    if [ "$current_sha" = "$CF_SHA256" ] && [ "$current_size" = "$CF_SIZE" ]; then
+      log "cloudflared $CF_VERSION already matches pinned SHA-256"
+      return 0
+    fi
+  fi
+
+  tmp="$(mktemp /tmp/cloudflared.XXXXXX)"
+  trap 'rm -f "$tmp"' RETURN
+  log "Downloading pinned cloudflared $CF_VERSION"
+  curl --fail --location --silent --show-error --retry 3 --retry-delay 2 "$CF_URL" -o "$tmp"
+
+  [ "$(stat -c '%s' "$tmp")" = "$CF_SIZE" ] || fail "cloudflared size mismatch"
+  printf '%s  %s\n' "$CF_SHA256" "$tmp" | sha256sum -c - >/dev/null || fail "cloudflared SHA-256 mismatch"
+
+  install -m 0755 "$tmp" "$dest"
+  printf '%s  %s\n' "$CF_SHA256" "$dest" | sha256sum -c - >/dev/null || fail "installed cloudflared SHA-256 mismatch"
+  "$dest" --version | grep -F "$CF_VERSION" >/dev/null || fail "installed cloudflared version mismatch"
+  rm -f "$tmp"
+  trap - RETURN
+  log "cloudflared $CF_VERSION installed and verified"
+}
+
 log "Installing runtime dependencies"
 apt-get update -y
 apt-get install -y ca-certificates curl git nginx php-cli php-fpm php-mysql
@@ -27,6 +60,8 @@ if ! command -v mysql >/dev/null 2>&1 && ! command -v mariadb >/dev/null 2>&1; t
     apt-get install -y mariadb-server
   fi
 fi
+
+install_cloudflared
 
 PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 PHP_FPM_SERVICE="php${PHP_VERSION}-fpm.service"
@@ -136,7 +171,7 @@ server {
 
     location ~ ^/(docs|storage/logs|storage/backups|tools)(/|$) { deny all; }
     location = /config.private.php { deny all; }
-    location ~ /.(?!well-known/) { deny all; }
+    location ~ /\\.(?!well-known/) { deny all; }
 
     location = /api/context/list { rewrite ^ /api/context.php?action=list last; }
     location = /api/context/current { rewrite ^ /api/context.php?action=current last; }
@@ -147,32 +182,32 @@ server {
 
     location = /sw.js {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files $uri =404;
+        try_files \\$uri =404;
     }
     location = /manifest.json {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files $uri =404;
+        try_files \\$uri =404;
     }
     location = /index.php {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:$PHP_FPM_SOCKET;
     }
-    location ~* .(js|css)$ {
+    location ~* \\.(js|css)$ {
         add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
-        try_files $uri =404;
+        try_files \\$uri =404;
     }
-    location ~* .(png|jpe?g|webp|svg)$ {
+    location ~* \\.(png|jpe?g|webp|svg)$ {
         expires 30d;
-        try_files $uri =404;
+        try_files \\$uri =404;
     }
-    location ~ .php$ {
-        try_files $uri =404;
+    location ~ \\.php$ {
+        try_files \\$uri =404;
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:$PHP_FPM_SOCKET;
     }
     location / {
-        try_files $uri $uri/ /index.php?$query_string;
+        try_files \\$uri $uri/ /index.php?$query_string;
     }
 }
 EOF
@@ -232,6 +267,7 @@ Description=KARETA Cloudflare Tunnel
 After=network-online.target kareta-ready.service
 Wants=network-online.target
 Requires=kareta-ready.service
+ConditionPathExists=$TOKEN_FILE
 
 [Service]
 Type=simple
@@ -263,8 +299,5 @@ EOF
 systemctl daemon-reload
 systemctl enable kareta-ready.service kareta-messaging-worker.service kareta-cloudflared.service kareta.target
 
-if ! command -v cloudflared >/dev/null 2>&1; then
-  log "WARN: cloudflared is not installed. KARETA_TUNNEL supply-chain integration is required before tunnel can start."
-fi
-
+printf '%s  %s\n' "$CF_SHA256" /usr/local/bin/cloudflared | sha256sum -c - >/dev/null || fail "cloudflared final integrity check failed"
 log "Bootstrap completed"
