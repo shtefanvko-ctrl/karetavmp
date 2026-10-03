@@ -135,6 +135,22 @@ func (o *Orchestrator) Verify(ctx context.Context) (VerifyReport, error) {
 		return report, errors.New("WSL distro is not ready")
 	}
 
+	lock, lockErr := loadCloudflaredLock()
+	var pinnedAsset CloudflaredAsset
+	if lockErr == nil {
+		if arch, archErr := o.runWSL(ctx, "root", "uname -m"); archErr == nil {
+			pinnedAsset, lockErr = selectCloudflaredAsset(lock, arch.Output)
+		} else {
+			lockErr = archErr
+		}
+	}
+	add("cloudflared_pin", lockErr == nil, func() string {
+		if lockErr != nil {
+			return lockErr.Error()
+		}
+		return lock.Source.Release + " " + pinnedAsset.Name
+	}())
+
 	for _, item := range []struct {
 		name string
 		cmd  string
@@ -147,10 +163,15 @@ func (o *Orchestrator) Verify(ctx context.Context) (VerifyReport, error) {
 		{"kareta_ready_unit", "systemctl is-active kareta-ready.service"},
 		{"messaging_worker", "systemctl is-active kareta-messaging-worker.service"},
 		{"cloudflared_binary", "command -v cloudflared"},
+		{"cloudflared_version", "cloudflared --version"},
 		{"cloudflared", "systemctl is-active kareta-cloudflared.service"},
 	} {
 		r, err := o.runWSL(ctx, "root", item.cmd)
 		add(item.name, err == nil, r.Output)
+	}
+	if lockErr == nil {
+		r, err := o.runWSL(ctx, "root", "printf '%s  %s\\n' "+shellSingleQuote(pinnedAsset.SHA256)+" /usr/local/bin/cloudflared | sha256sum -c -")
+		add("cloudflared_sha256", err == nil, r.Output)
 	}
 
 	localHealth := shellSingleQuote(o.cfg.Runtime.LocalURL + o.cfg.Runtime.RuntimeHealthPath)
@@ -196,6 +217,20 @@ func (o *Orchestrator) ensureSystemd(ctx context.Context) error {
 }
 
 func (o *Orchestrator) runBootstrap(ctx context.Context) error {
+	lock, err := loadCloudflaredLock()
+	if err != nil {
+		return err
+	}
+	archResult, err := o.runWSL(ctx, "root", "uname -m")
+	if err != nil {
+		return fmt.Errorf("detect WSL architecture: %w", err)
+	}
+	asset, err := selectCloudflaredAsset(lock, archResult.Output)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[KARETA] cloudflared pin: %s %s sha256=%s\n", lock.Source.Release, asset.Name, asset.SHA256)
+
 	args := []string{
 		"-d", o.cfg.WSL.Distro,
 		"--user", "root",
@@ -209,6 +244,10 @@ func (o *Orchestrator) runBootstrap(ctx context.Context) error {
 		o.cfg.Runtime.ReadinessPath,
 		o.cfg.Cloudflare.Hostname,
 		o.cfg.Cloudflare.TokenFileLinux,
+		lock.Source.Release,
+		asset.URL,
+		asset.SHA256,
+		fmt.Sprintf("%d", asset.Size),
 	}
 	r, err := runCommandInput(ctx, bytes.NewReader(bootstrapScript), "wsl.exe", args...)
 	if r.Output != "" {
