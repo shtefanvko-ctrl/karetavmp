@@ -27,7 +27,11 @@ jobs:
           cache: false
 
       - name: Compile and test
-        run: go test ./...
+        run: |
+          go test ./...
+          go vet ./...
+          bash -n cmd/kareta-node/bootstrap.sh
+          grep -F 'try_files \$uri \$uri/ /index.php?\$query_string;' cmd/kareta-node/bootstrap.sh
 
       - name: Build Windows amd64
         env:
