@@ -69,7 +69,7 @@ func windowsMachineGUID(ctx context.Context) string {
 
 func isAdministrator(ctx context.Context) bool {
 	if runtime.GOOS != "windows" {
-		return os.Geteuid() == 0
+		return false
 	}
 	r, err := runCommand(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
 		"([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
