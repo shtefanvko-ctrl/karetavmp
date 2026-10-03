@@ -1,0 +1,49 @@
+name: build-windows
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Compile and test
+        run: go test ./...
+
+      - name: Build Windows amd64
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/KARETA-Node.exe ./cmd/kareta-node
+          sha256sum dist/KARETA-Node.exe | tee dist/KARETA-Node.exe.sha256
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: KARETA-Node-windows-amd64
+          path: |
+            dist/KARETA-Node.exe
+            dist/KARETA-Node.exe.sha256
+          if-no-files-found: error
