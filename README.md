@@ -17,8 +17,10 @@ Implemented on branch `feat/kareta-node-mvp-20261003`:
 - nginx parity rules for the current KARETA `.htaccess` contract;
 - `kareta-ready.service`, messaging worker, Cloudflare service and `kareta.target`;
 - Cloudflare token read from an environment variable or local token file and written inside WSL with mode 0600;
+- verified cloudflared 2026.8.2 runtime selection for Linux amd64/arm64 from the KARETA_TUNNEL supply-chain contract;
+- cloudflared is downloaded only from the pinned release URL, checked by exact byte size and SHA-256 before install, and checked again after install;
 - Cloudflare runs with `--token-file`; secrets are never committed;
-- verification of PHP/PDO, DB, nginx, worker, readiness and external tunnel;
+- verification of the cloudflared pin/hash plus PHP/PDO, DB, nginx, worker, readiness and external tunnel;
 - CI builds `KARETA-Node.exe` as a GitHub Actions artifact. Binaries are not committed to source Git.
 
 ## Build
@@ -52,5 +54,7 @@ A machine-specific config can override those values, but raw Cloudflare tokens a
 
 ## Safety boundary
 
-The bootstrap does not run database migrations or reset an existing dirty KARETA working tree. It fails closed instead. Cloudflared binary acquisition is also not yet automatic: the next increment will consume a verified cloudflared artifact/pin from `KARETA_TUNNEL` rather than downloading an unverified `latest` binary.
+The bootstrap does not run database migrations or reset an existing dirty KARETA working tree. It fails closed instead. It never downloads a cloudflared `latest` artifact: the embedded lock mirrors the exact KARETA_TUNNEL runtime contract and unsupported WSL architectures fail closed.
+
+Database/schema provisioning, Windows startup registration/checkpoint-resume, and live execution on the target KARETA PC remain separate verification increments.
 
