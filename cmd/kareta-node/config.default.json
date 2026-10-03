@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "node": {
+    "id": "auto",
+    "role": "staging"
+  },
+  "wsl": {
+    "distro": "Ubuntu"
+  },
+  "kareta": {
+    "repository": "https://github.com/shtefanvko-ctrl/kareta.git",
+    "ref": "main",
+    "install_path": "/var/www/kareta"
+  },
+  "runtime": {
+    "local_url": "http://127.0.0.1",
+    "runtime_health_path": "/api/runtime_health.php",
+    "readiness_path": "/api/readiness.php"
+  },
+  "cloudflare": {
+    "hostname": "s.kareta.kz",
+    "token_env": "KARETA_CF_TUNNEL_TOKEN",
+    "token_file_windows": "",
+    "token_file_linux": "/etc/cloudflared/token"
+  },
+  "update": {
+    "auto": true,
+    "verify_before_switch": true,
+    "rollback_on_failure": true
+  }
+}

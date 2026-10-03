@@ -1,0 +1,7 @@
+dist/
+*.exe
+*.dll
+*.zip
+kareta-node.json
+*.token
+secrets/
