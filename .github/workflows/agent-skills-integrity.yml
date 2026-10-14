@@ -1,0 +1,27 @@
+name: Agent skills integrity
+
+on:
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - ".agents/**"
+      - ".github/workflows/agent-skills-integrity.yml"
+  push:
+    paths:
+      - "AGENTS.md"
+      - ".agents/**"
+      - ".github/workflows/agent-skills-integrity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate canonical skills
+        run: node .agents/skills/validate.mjs
