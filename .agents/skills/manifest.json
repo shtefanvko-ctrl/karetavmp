@@ -1,0 +1,14 @@
+{
+  "schema": "karetavmp.agent-skills.v1",
+  "skills": [
+    "vmp-node-orchestrator",
+    "vmp-windows-wsl-systemd",
+    "vmp-idempotent-provisioning",
+    "vmp-cloudflare-secret-boundary",
+    "vmp-readiness-recovery",
+    "vmp-packaging-release",
+    "vmp-devil-review"
+  ],
+  "idempotentProvisioning": true,
+  "noDuplicateSkills": true
+}
